@@ -1,8 +1,9 @@
 fastapi
 pydantic
 langchain 
-openai 
+openai
 faiss-cpu 
 pandas
 python-dotenv
 uvicorn
+alembic

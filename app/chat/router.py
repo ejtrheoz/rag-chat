@@ -13,6 +13,9 @@ router = APIRouter(
 async def echo_message(request: Request):
     data = await request.json()
     message = data.get("message", "")
-    answer = LLM.send_rag_message(message)
-    # echo message back as Bot's answer
+    response = LLM.send_message(message)
+    answer = response["answer"]
+    
+    print(f"{LLM._memories}")
+
     return {"response": f"Bot: {answer}"}
