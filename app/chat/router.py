@@ -2,7 +2,9 @@ from fastapi import APIRouter, Request
 from app.config import settings
 from langchain_core.messages import HumanMessage
 from app.core.llm import LLM
-
+from fastapi import Depends
+from app.users.dependencies import get_current_user
+from app.users.models import Users
 
 router = APIRouter(
     prefix="/chat",
@@ -10,12 +12,23 @@ router = APIRouter(
 )
 
 @router.post("/answer")
-async def echo_message(request: Request):
+async def send_message(request: Request, current_user: Users = Depends(get_current_user)):
     data = await request.json()
     message = data.get("message", "")
-    response = LLM.send_message(message)
-    answer = response["answer"]
+
     
-    print(f"{LLM._memories}")
+
+
+    if LLM.detect_preference(message):
+        preferences = LLM.get_user_preferences(str(current_user.id), "From all messages extract the ones that are related to the user's preferences", k=5)
+        response = LLM.send_message(message, str(current_user.id), preferences)
+        LLM.chat_vector_db.add_chat(str(current_user.id), message)
+    else:
+        response = LLM.send_message(message, str(current_user.id))
+
+    
+    answer = response["answer"]
+
+
 
     return {"response": f"Bot: {answer}"}

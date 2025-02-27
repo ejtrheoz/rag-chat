@@ -9,13 +9,19 @@ from app.config import settings
 from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 import os
-import uuid
+from app.core.chat_vector_db import ChatVectorDB
+import nltk
+from nltk.tokenize import word_tokenize
+from transformers import pipeline
+
+
+
 
 
 class LLM:
     model = ChatOpenAI(
         model_name="gpt-4o-mini",
-        temperature=0.7,
+        temperature=0.1,
         openai_api_key=settings.OPENAI_API_KEY
     )
     
@@ -26,31 +32,36 @@ class LLM:
 
     loaded_vectorstore = FAISS.load_local(os.path.join("app", "core", "faiss_index"), embeddings, allow_dangerous_deserialization=True)
     retriever = loaded_vectorstore.as_retriever(search_kwargs={"k": 5})
+
+    chat_vector_db = ChatVectorDB(index_path=os.path.join("app", "core", "chat_vector_index"))
+
     
     # Dictionary to store conversation memories by session ID
     _memories = {}
     
     @classmethod
-    def get_memory(cls, session_id: str = None) -> ConversationBufferMemory:
-        """Get or create a memory instance for the specified session"""
-        if not session_id:
-            session_id = str(uuid.uuid4())
-            
-        if session_id not in cls._memories:
-            cls._memories[session_id] = ConversationBufferMemory(
-                memory_key="chat_history",
+    def get_memory(cls, user_id: str) -> ConversationBufferMemory:
+        """Get or create a memory instance for the specified user"""
+        if user_id not in cls._memories:
+            cls._memories[user_id] = ConversationBufferMemory(
+                memory_key="history",  # changed from "chat_history" to "history"
                 return_messages=True
             )
             
-        return cls._memories[session_id]
+        return cls._memories[user_id]
     
     @classmethod
-    def generate_prompt(cls):
-        template = """Answer the question based only on the following context and without bullet points containing only short answers:
+    def generate_prompt(cls, preferences_context: Optional[str] = None):
+        template = """Answer the question based only on the following context 
+        and without bullet points containing only short answers using your knowledge from database:
         {context}
 
         Question: {question}
-        Answer:"""
+        Answer:
+        """
+
+        if preferences_context:
+            template += "Preferences: " + preferences_context
 
         prompt = PromptTemplate(
             template=template,
@@ -60,13 +71,13 @@ class LLM:
         return prompt
     
     @classmethod
-    def query_rag(cls, question: str):
+    def query_rag(cls, question: str, preferences_context: Optional[str] = None):
         rag_chain = RetrievalQA.from_chain_type(
             llm=cls.model,
             chain_type="stuff",
             retriever=cls.retriever,
             return_source_documents=True,
-            chain_type_kwargs={"prompt": cls.generate_prompt()}
+            chain_type_kwargs={"prompt": cls.generate_prompt(preferences_context)}
         )
 
         result = rag_chain({"query": question})
@@ -76,42 +87,54 @@ class LLM:
         }
 
     @classmethod
-    def send_message(cls, message: str, session_id: str = None):
-        # Get memory for this session
-        memory = cls.get_memory(session_id)
+    def send_message(cls, message: str, user_id: str, preferences_context: Optional[str] = None):
+        # Get memory for this user
+        memory = cls.get_memory(user_id)
         
         # Store the human message in memory
         memory.chat_memory.add_user_message(message)
         
         # Get response from RAG
-        response = cls.query_rag(message)
+        response = cls.query_rag(message, preferences_context)
         answer = response["answer"]
         
         # Store the AI response in memory
         memory.chat_memory.add_ai_message(answer)
+
+        combined = f"User: {message}\nAssistant: {answer}"
+        # print(cls.chat_vector_db.get_all_chats())
+
+        if any(keyword in message.lower() for keyword in ["like", "prefer"]):
+            cls.chat_vector_db.add_chat(user_id, message)
+
         
         return {
             "answer": answer,
-            "session_id": session_id,
+            "user_id": user_id,
             "source_documents": response["source_documents"]
         }
     
     @classmethod
-    def get_conversation_history(cls, session_id: str) -> List[Dict[str, str]]:
-        """Get the conversation history for a specific session"""
-        if session_id not in cls._memories:
-            return []
-        
-        memory = cls._memories[session_id]
-        messages = memory.chat_memory.messages
-        
-        history = []
-        for message in messages:
-            if isinstance(message, HumanMessage):
-                history.append({"role": "user", "content": message.content})
-            elif isinstance(message, AIMessage):
-                history.append({"role": "assistant", "content": message.content})
-            elif isinstance(message, SystemMessage):
-                history.append({"role": "system", "content": message.content})
-        
-        return history
+    def get_user_preferences(cls, user_id: str, query: str, k: int = 5):
+        """
+        Query the chat vector database for documents related to the user's preferences.
+        Returns only the page content.
+        """
+        chat_vector_db = ChatVectorDB(index_path=os.path.join("app", "core", "chat_vector_index"))
+        results = chat_vector_db.query_chats(query, k=k)
+        user_results = [doc for doc in results if doc.metadata.get("user_id") == user_id]
+        # Extract just the page_content
+        content_list = [doc.page_content for doc in user_results]
+        content_str = "\n".join(content_list)
+        return content_str
+    
+    @classmethod
+    def detect_preference(cls, sentence: str) -> bool:
+        classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+        candidate_labels = ["preference", "other"]
+
+        result = classifier(sentence, candidate_labels)
+        # If the top label is "preference", we detect a preference
+        return result["labels"][0] == "preference"
+
+    
