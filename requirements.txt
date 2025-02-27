@@ -1,2 +1,8 @@
 fastapi
 pydantic
+langchain 
+openai 
+faiss-cpu 
+pandas
+python-dotenv
+uvicorn
