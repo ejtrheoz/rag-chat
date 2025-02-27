@@ -1,3 +1,4 @@
+<!-- filepath: /d:/work/first/app/templates/chat.html -->
 <!DOCTYPE html>
 <html>
   <head>
@@ -30,9 +31,30 @@
         const input = document.getElementById("messageInput");
         const message = input.value;
         if (message.trim() === "") return;
-        const messageDiv = document.createElement("div");
-        messageDiv.textContent = message;
-        document.getElementById("chat-messages").appendChild(messageDiv);
+
+        // show user's message
+        const userMessageDiv = document.createElement("div");
+        userMessageDiv.textContent = "You: " + message;
+        document.getElementById("chat-messages").appendChild(userMessageDiv);
+
+        // send message to server and display echo response
+        fetch("/chat/answer", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ message: message })
+        })
+        .then(response => response.json())
+        .then(data => {
+          const botMessageDiv = document.createElement("div");
+          botMessageDiv.textContent = data.response;
+          document.getElementById("chat-messages").appendChild(botMessageDiv);
+        })
+        .catch(error => {
+          console.error("Error:", error);
+        });
+
         input.value = "";
       }
     </script>
