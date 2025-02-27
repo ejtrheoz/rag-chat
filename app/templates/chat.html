@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Chat Room</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+      .chat-container { display: flex; flex-direction: column; height: 100vh; }
+      .chat-header { background: #333; color: #fff; padding: 15px; }
+      .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f9f9f9; }
+      .chat-input { display: flex; background: #eee; padding: 10px; }
+      .chat-input input { flex: 1; padding: 10px; border: none; border-radius: 5px; }
+      .chat-input button { margin-left: 10px; padding: 10px 20px; border: none; background: #333; color: #fff; border-radius: 5px; }
+    </style>
+  </head>
+  <body>
+    <div class="chat-container">
+      <div class="chat-header">
+        <h1>Chat Room</h1>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+      </div>
+      <div class="chat-input">
+        <input type="text" id="messageInput" placeholder="Type your message...">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+    <script>
+      function sendMessage() {
+        const input = document.getElementById("messageInput");
+        const message = input.value;
+        if (message.trim() === "") return;
+        const messageDiv = document.createElement("div");
+        messageDiv.textContent = message;
+        document.getElementById("chat-messages").appendChild(messageDiv);
+        input.value = "";
+      }
+    </script>
+  </body>
+</html>
