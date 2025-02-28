@@ -117,15 +117,21 @@ class LLM:
     @classmethod
     def get_user_preferences(cls, user_id: str, query: str, k: int = 5):
         """
-        Query the chat vector database for documents related to the user's preferences.
-        Returns only the page content.
+        Query the chat vector database for documents related to the user's preferences,
+        filter out specific unwanted messages, and return only unique page content.
         """
         chat_vector_db = ChatVectorDB(index_path=os.path.join("app", "core", "chat_vector_index"))
         results = chat_vector_db.query_chats(query, k=k)
         user_results = [doc for doc in results if doc.metadata.get("user_id") == user_id]
         # Extract just the page_content
         content_list = [doc.page_content for doc in user_results]
-        content_str = "\n".join(content_list)
+        
+        # Filter out unwanted messages, e.g. messages that exactly equal "what i like"
+        filtered = [msg for msg in content_list if msg.strip().lower() != "what i like"]
+        
+        # Optionally remove duplicates
+        unique_messages = list(dict.fromkeys(filtered))
+        content_str = "\n".join(unique_messages)
         return content_str
     
     @classmethod

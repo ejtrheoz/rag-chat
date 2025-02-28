@@ -16,13 +16,12 @@ async def send_message(request: Request, current_user: Users = Depends(get_curre
     data = await request.json()
     message = data.get("message", "")
 
-    
-
-
     if LLM.detect_preference(message):
-        preferences = LLM.get_user_preferences(str(current_user.id), "From all messages extract the ones that are related to the user's preferences", k=5)
+        print("Detected preference")
+        preferences = LLM.get_user_preferences(str(current_user.id), "Get messages where user says what he likes and ignore such messages as 'what i like'", k=100)
         response = LLM.send_message(message, str(current_user.id), preferences)
         LLM.chat_vector_db.add_chat(str(current_user.id), message)
+        print(preferences)
     else:
         response = LLM.send_message(message, str(current_user.id))
 
