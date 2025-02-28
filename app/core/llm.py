@@ -10,9 +10,8 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 import os
 from app.core.chat_vector_db import ChatVectorDB
-import nltk
+from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from transformers import pipeline
 
 
 
@@ -104,9 +103,6 @@ class LLM:
         combined = f"User: {message}\nAssistant: {answer}"
         # print(cls.chat_vector_db.get_all_chats())
 
-        if any(keyword in message.lower() for keyword in ["like", "prefer"]):
-            cls.chat_vector_db.add_chat(user_id, message)
-
         
         return {
             "answer": answer,
@@ -114,33 +110,5 @@ class LLM:
             "source_documents": response["source_documents"]
         }
     
-    @classmethod
-    def get_user_preferences(cls, user_id: str, query: str, k: int = 5):
-        """
-        Query the chat vector database for documents related to the user's preferences,
-        filter out specific unwanted messages, and return only unique page content.
-        """
-        chat_vector_db = ChatVectorDB(index_path=os.path.join("app", "core", "chat_vector_index"))
-        results = chat_vector_db.query_chats(query, k=k)
-        user_results = [doc for doc in results if doc.metadata.get("user_id") == user_id]
-        # Extract just the page_content
-        content_list = [doc.page_content for doc in user_results]
-        
-        # Filter out unwanted messages, e.g. messages that exactly equal "what i like"
-        filtered = [msg for msg in content_list if msg.strip().lower() != "what i like"]
-        
-        # Optionally remove duplicates
-        unique_messages = list(dict.fromkeys(filtered))
-        content_str = "\n".join(unique_messages)
-        return content_str
-    
-    @classmethod
-    def detect_preference(cls, sentence: str) -> bool:
-        classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-        candidate_labels = ["preference", "other"]
-
-        result = classifier(sentence, candidate_labels)
-        # If the top label is "preference", we detect a preference
-        return result["labels"][0] == "preference"
 
     

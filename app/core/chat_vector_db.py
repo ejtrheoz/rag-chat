@@ -10,6 +10,7 @@ class ChatVectorDB:
             model="text-embedding-ada-002",
             openai_api_key=settings.OPENAI_API_KEY
         )
+        
         if index_path and os.path.exists(index_path):
             self.index = FAISS.load_local(index_path, self.embeddings, allow_dangerous_deserialization=True)
         else:

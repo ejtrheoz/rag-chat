@@ -8,4 +8,4 @@ python-dotenv
 uvicorn
 alembic
 transformers
-
+nltk
